@@ -1,21 +1,21 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import openai
 import os
-import tempfile
-import base64
-from datetime import datetime
-from transcrever_audio import transcrever_audio
-from comunicacao_nuvem import falar_resposta
-from gravar_audio import gravar_audio_inteligente
-from firestore_memoria import salvar_memoria, buscar_memorias_por_palavra, buscar_memorias_por_data
+from firestore_memoria import (
+    salvar_memoria,
+    buscar_memorias_por_palavra,
+    buscar_memorias_por_data
+)
 
 load_dotenv()
+app = FastAPI()
 
+# Inicializa API do OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-app = FastAPI()
+# ───────────────────────── MODELOS ─────────────────────────
 
 class Pergunta(BaseModel):
     texto: str
@@ -26,7 +26,9 @@ class ConsultaPorPalavra(BaseModel):
 
 class ConsultaPorData(BaseModel):
     usuario: str
-    data: str
+    data: str  # formato: YYYY-MM-DD
+
+# ──────────────────────── ENDPOINTS ────────────────────────
 
 @app.get("/")
 def root():
@@ -43,7 +45,9 @@ async def responder(pergunta: Pergunta):
             ]
         )
         conteudo = resposta.choices[0].message.content.strip()
+
         salvar_memoria("thais", pergunta.texto, conteudo)
+
         return {"resposta": conteudo}
     except Exception as e:
         return {"erro": str(e)}
@@ -59,46 +63,7 @@ async def memoria(consulta: ConsultaPorPalavra):
 @app.post("/memoria_por_data")
 async def memoria_por_data(consulta: ConsultaPorData):
     try:
-        data_formatada = datetime.fromisoformat(consulta.data).date()
-        resultados = buscar_memorias_por_data(consulta.usuario, data_formatada)
+        resultados = buscar_memorias_por_data(consulta.usuario, consulta.data)
         return resultados
     except Exception as e:
-        return {"erro": f"Erro ao interpretar data: {e}"}
-
-@app.post("/ativar")
-async def ativar_jarvis():
-    print("🎙️ Iniciando gravação...")
-    caminho_arquivo = gravar_audio_inteligente()
-    print("✅ Áudio gravado.")
-
-    print("🧠 Transcrevendo...")
-    texto = transcrever_audio(caminho_arquivo)
-    print(f"📝 Texto: {texto}")
-
-    if not texto:
-        return {"erro": "Nenhum áudio detectado"}
-
-    print("💬 Enviando ao ChatGPT...")
-    resposta = falar_resposta(texto)
-    print(f"💡 Resposta: {resposta}")
-
-    salvar_memoria("thais", texto, resposta)
-
-    print("🔊 Gerando áudio da resposta...")
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
-        response = openai.audio.speech.create(
-            model="tts-1",
-            voice="shimmer",
-            input=resposta
-        )
-        response.stream_to_file(temp_audio.name)
-
-        with open(temp_audio.name, "rb") as f:
-            encoded = base64.b64encode(f.read()).decode("utf-8")
-
-    print("✅ Jarvis concluído.")
-    return {
-        "texto": texto,
-        "resposta": resposta,
-        "audio_base64": encoded
-    }
+        return {"erro": str(e)}
