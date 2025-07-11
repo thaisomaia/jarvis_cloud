@@ -4,4 +4,3 @@ openai
 pydantic
 firebase-admin
 python-dotenv
-openai-whisper

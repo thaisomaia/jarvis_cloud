@@ -1,20 +1,13 @@
-import whisper
-import os
-
-# Carrega o modelo medium para melhor precisão no português
-modelo = whisper.load_model("medium")
+import openai
 
 def transcrever_audio(caminho_arquivo):
-    if not os.path.exists(caminho_arquivo):
-        print(f"❌ Arquivo não encontrado: {caminho_arquivo}")
+    try:
+        with open(caminho_arquivo, "rb") as audio_file:
+            transcript = openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+            return transcript.text
+    except Exception as e:
+        print(f"Erro na transcrição: {e}")
         return ""
-
-    print("🧠 Transcrevendo com Whisper...")
-
-    # Transcreve com idioma forçado e temperatura 0 para reduzir erros aleatórios
-    resultado = modelo.transcribe(caminho_arquivo, language="pt", temperature=0)
-    
-    texto = resultado["text"].strip()
-    print(f"📝 Texto: {texto if texto else '[vazio]'}")
-    
-    return texto
