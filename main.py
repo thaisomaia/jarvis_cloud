@@ -5,16 +5,17 @@ import openai
 import os
 import tempfile
 import base64
-
-from gravar_audio import gravar_audio_inteligente
+from datetime import datetime
 from transcrever_audio import transcrever_audio
 from comunicacao_nuvem import falar_resposta
+from gravar_audio import gravar_audio_inteligente
 from firestore_memoria import salvar_memoria, buscar_memorias_por_palavra, buscar_memorias_por_data
 
 load_dotenv()
 
-app = FastAPI()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+app = FastAPI()
 
 class Pergunta(BaseModel):
     texto: str
@@ -58,10 +59,11 @@ async def memoria(consulta: ConsultaPorPalavra):
 @app.post("/memoria_por_data")
 async def memoria_por_data(consulta: ConsultaPorData):
     try:
-        resultados = buscar_memorias_por_data(consulta.usuario, consulta.data)
+        data_formatada = datetime.fromisoformat(consulta.data).date()
+        resultados = buscar_memorias_por_data(consulta.usuario, data_formatada)
         return resultados
     except Exception as e:
-        return {"erro": str(e)}
+        return {"erro": f"Erro ao interpretar data: {e}"}
 
 @app.post("/ativar")
 async def ativar_jarvis():
