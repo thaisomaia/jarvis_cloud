@@ -2,36 +2,52 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import openai
 import os
+from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-from firestore_memoria import salvar_memoria, buscar_memorias_por_palavra
+# 🔐 Carrega as variáveis de ambiente
+load_dotenv()
 
+# 🧠 Inicializa o Firebase com base64
+if not firebase_admin._apps:
+    import base64
+    import json
+    base64_cred = os.getenv("FIREBASE_KEY_BASE64")
+    cred_dict = json.loads(base64.b64decode(base64_cred).decode("utf-8"))
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# 🧠 Inicializa a OpenAI com nova sintaxe (>= 1.0.0)
+from openai import OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# 🛰️ Inicializa o FastAPI
 app = FastAPI()
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class Pergunta(BaseModel):
     texto: str
-    usuario: str = "padrao"
 
 @app.post("/responder")
-def responder(pergunta: Pergunta):
+async def responder(pergunta: Pergunta):
     try:
-        resposta = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": pergunta.texto}]
-        ).choices[0].message["content"]
+        resposta = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "Você é o assistente Jarvis."},
+                {"role": "user", "content": pergunta.texto},
+            ],
+            model="gpt-4"
+        )
+        conteudo = resposta.choices[0].message.content
 
-        # Salva na memória do Firestore
-        salvar_memoria(pergunta.usuario, pergunta.texto, resposta)
+        # 🧠 Salva no Firestore
+        doc_ref = db.collection("memorias").document()
+        doc_ref.set({
+            "pergunta": pergunta.texto,
+            "resposta": conteudo
+        })
 
-        return {"resposta": resposta}
-    except Exception as e:
-        return {"erro": str(e)}
-
-@app.post("/memoria")
-def memoria(pergunta: Pergunta):
-    try:
-        memorias = buscar_memorias_por_palavra(pergunta.usuario, pergunta.texto)
-        return {"memorias": memorias}
+        return {"resposta": conteudo}
     except Exception as e:
         return {"erro": str(e)}
