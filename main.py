@@ -1,60 +1,62 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import openai
 import os
-import json
-from datetime import datetime
 from firestore_memoria import salvar_memoria, buscar_memorias_por_palavra, buscar_memorias_por_data
-import base64
+
+load_dotenv()
 
 app = FastAPI()
 
-# Carregar chave do Firebase a partir da variável de ambiente base64
-chave_base64 = os.getenv("FIREBASE_KEY_BASE64")
-if chave_base64:
-    caminho_chave = "firebase_key.json"
-    with open(caminho_chave, "wb") as f:
-        f.write(base64.b64decode(chave_base64))
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = caminho_chave
-
-# Chave da OpenAI
+# Inicializa API do OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-class RequisicaoPergunta(BaseModel):
+class Pergunta(BaseModel):
     texto: str
 
-class RequisicaoMemoria(BaseModel):
+class ConsultaPorPalavra(BaseModel):
     usuario: str
     palavra: str
 
-class RequisicaoData(BaseModel):
+class ConsultaPorData(BaseModel):
     usuario: str
-    data: str  # Ex: "2025-07-10"
+    data: str  # formato: YYYY-MM-DD
+
+@app.get("/")
+def root():
+    return {"mensagem": "Jarvis Cloud API rodando!"}
 
 @app.post("/responder")
-async def responder(req: RequisicaoPergunta):
-    pergunta = req.texto.strip()
-    resposta = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Você é um assistente pessoal inteligente."},
-            {"role": "user", "content": pergunta}
-        ]
-    )["choices"][0]["message"]["content"]
+async def responder(pergunta: Pergunta):
+    try:
+        resposta = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Você é o Jarvis, um assistente pessoal inteligente."},
+                {"role": "user", "content": pergunta.texto}
+            ]
+        )
+        conteudo = resposta.choices[0].message.content.strip()
 
-    salvar_memoria(pergunta, resposta, usuario="thais")
-    return {"resposta": resposta}
+        salvar_memoria("thais", pergunta.texto, conteudo)
+
+        return {"resposta": conteudo}
+    except Exception as e:
+        return {"erro": str(e)}
 
 @app.post("/memoria")
-async def memoria(req: RequisicaoMemoria):
-    resultados = buscar_memorias_por_palavra(req.palavra, req.usuario)
-    return resultados
-
-@app.post("/memoria_por_data")
-async def memoria_por_data(req: RequisicaoData):
+async def memoria(consulta: ConsultaPorPalavra):
     try:
-        data = datetime.strptime(req.data, "%Y-%m-%d").date()
-        resultados = buscar_memorias_por_data(data.isoformat(), req.usuario)
+        resultados = buscar_memorias_por_palavra(consulta.usuario, consulta.palavra)
         return resultados
     except Exception as e:
-        return {"erro": f"Erro ao interpretar data: {str(e)}"}
+        return {"erro": str(e)}
+
+@app.post("/memoria_por_data")
+async def memoria_por_data(consulta: ConsultaPorData):
+    try:
+        resultados = buscar_memorias_por_data(consulta.usuario, consulta.data)
+        return resultados
+    except Exception as e:
+        return {"erro": str(e)}
