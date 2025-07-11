@@ -1,20 +1,23 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
 app = FastAPI()
 
-class Event(BaseModel):
-    titulo: str
-    data: str
-    hora: str
+class ComandoEntrada(BaseModel):
+    texto: str
 
 @app.get("/")
-def home():
+def raiz():
     return {"mensagem": "Jarvis Cloud API rodando!"}
 
-@app.post("/criar_evento")
-def criar_evento(event: Event):
-    # Aqui futuramente chamaremos funções reais
-    return {
-        "mensagem": f"Evento '{event.titulo}' criado para {event.data} às {event.hora}."
-    }
+@app.post("/comando")
+def interpretar_comando(entrada: ComandoEntrada):
+    texto = entrada.texto.lower()
+    
+    if "adicion" in texto or "crie" in texto or "marque" in texto:
+        return {"tipo": "evento", "acao": "criar", "resposta": "🔧 Criar evento"}
+    
+    if "compromisso" in texto or "agenda" in texto or "reuni" in texto:
+        return {"tipo": "evento", "acao": "consultar", "resposta": "📅 Consultar compromissos"}
+    
+    return {"tipo": "desconhecido", "resposta": "🤖 Comando não reconhecido"}
