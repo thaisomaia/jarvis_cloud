@@ -2,6 +2,6 @@ fastapi
 uvicorn
 fastapi
 uvicorn
-openai
+openai>=1.2.4
 pydantic
 firebase-admin
