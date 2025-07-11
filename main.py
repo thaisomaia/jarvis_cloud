@@ -1,16 +1,22 @@
-from fastapi import File, UploadFile
+from fastapi import FastAPI, File, UploadFile
 import tempfile
-import requests
+import openai
+import os
+from dotenv import load_dotenv
+from memoria import salvar_memoria
+
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+app = FastAPI()
 
 @app.post("/responder_audio")
 async def responder_audio(file: UploadFile = File(...)):
     try:
-        # Salva o arquivo temporariamente
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp:
             temp.write(await file.read())
             temp_path = temp.name
 
-        # Transcreve com a API Whisper da OpenAI
         audio_file = open(temp_path, "rb")
         transcript = openai.audio.transcriptions.create(
             model="whisper-1",
@@ -19,7 +25,6 @@ async def responder_audio(file: UploadFile = File(...)):
         texto = transcript.text.strip()
         print("📝 Texto transcrito:", texto)
 
-        # Gera resposta com GPT-4
         resposta = openai.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -29,9 +34,9 @@ async def responder_audio(file: UploadFile = File(...)):
         )
         conteudo = resposta.choices[0].message.content.strip()
 
-        # Salva na memória
         salvar_memoria("thais", texto, conteudo)
 
         return {"texto": texto, "resposta": conteudo}
+
     except Exception as e:
         return {"erro": str(e)}
