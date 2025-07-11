@@ -1,42 +1,59 @@
-from fastapi import FastAPI, File, UploadFile
-import tempfile
-import openai
 import os
+from datetime import datetime
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
-from memoria import salvar_memoria
+
+from responder import responder_com_gpt
+from memoria import salvar_na_memoria, interpretar_comando_memoria
+from firestore_memoria import buscar_memorias_por_palavra, buscar_memorias_por_data
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 
-@app.post("/responder_audio")
-async def responder_audio(file: UploadFile = File(...)):
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp:
-            temp.write(await file.read())
-            temp_path = temp.name
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-        audio_file = open(temp_path, "rb")
-        transcript = openai.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file
-        )
-        texto = transcript.text.strip()
-        print("📝 Texto transcrito:", texto)
+class RequisicaoTexto(BaseModel):
+    texto: str
 
-        resposta = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Você é o Jarvis, um assistente pessoal inteligente."},
-                {"role": "user", "content": texto}
-            ]
-        )
-        conteudo = resposta.choices[0].message.content.strip()
+@app.post("/responder")
+async def responder(request: RequisicaoTexto):
+    texto = request.texto
+    print(f"🧠 Pergunta recebida: {texto}")
 
-        salvar_memoria("thais", texto, conteudo)
+    # Verifica se é um comando de busca por memória
+    chave, tipo_busca = interpretar_comando_memoria(texto)
 
-        return {"texto": texto, "resposta": conteudo}
+    if tipo_busca == "data":
+        memorias = buscar_memorias_por_data(chave)
+        if memorias:
+            resposta = "\n".join([m["texto"] for m in memorias])
+            print("📚 Resposta da memória (por data):", resposta)
+            return {"resposta": resposta}
+    elif tipo_busca == "palavra":
+        memorias = buscar_memorias_por_palavra(chave)
+        if memorias:
+            resposta = "\n".join([m["texto"] for m in memorias])
+            print("📚 Resposta da memória (por palavra):", resposta)
+            return {"resposta": resposta}
 
-    except Exception as e:
-        return {"erro": str(e)}
+    # Não encontrou → chama o GPT
+    resposta_gpt = responder_com_gpt(texto)
+    print("🤖 Resposta do GPT:", resposta_gpt)
+
+    # Gera data atual formatada
+    agora = datetime.now()
+    data_formatada = agora.strftime("%d/%m/%Y")
+
+    # Salva na memória
+    salvar_na_memoria(texto, resposta_gpt, data_formatada)
+
+    return {"resposta": resposta_gpt}
