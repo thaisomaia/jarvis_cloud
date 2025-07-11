@@ -6,20 +6,15 @@ import os
 import tempfile
 import base64
 
-from firestore_memoria import (
-    salvar_memoria,
-    buscar_memorias_por_palavra,
-    buscar_memorias_por_data
-)
-
-from modules.transcrever_audio import transcrever_audio
-from modules.comunicacao_nuvem import falar_resposta
-from modules.gravar_audio import gravar_audio_inteligente
+from gravar_audio import gravar_audio_inteligente
+from transcrever_audio import transcrever_audio
+from comunicacao_nuvem import falar_resposta
+from firestore_memoria import salvar_memoria, buscar_memorias_por_palavra, buscar_memorias_por_data
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class Pergunta(BaseModel):
     texto: str
@@ -30,7 +25,7 @@ class ConsultaPorPalavra(BaseModel):
 
 class ConsultaPorData(BaseModel):
     usuario: str
-    data: str  # formato: YYYY-MM-DD
+    data: str
 
 @app.get("/")
 def root():
@@ -82,26 +77,19 @@ async def ativar_jarvis():
         return {"erro": "Nenhum áudio detectado"}
 
     print("💬 Enviando ao ChatGPT...")
-    resposta = openai.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Você é o Jarvis, um assistente pessoal inteligente."},
-            {"role": "user", "content": texto}
-        ]
-    )
-    conteudo = resposta.choices[0].message.content.strip()
-    print(f"💡 Resposta: {conteudo}")
+    resposta = falar_resposta(texto)
+    print(f"💡 Resposta: {resposta}")
 
-    salvar_memoria("thais", texto, conteudo)
+    salvar_memoria("thais", texto, resposta)
 
     print("🔊 Gerando áudio da resposta...")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
-        audio_response = openai.audio.speech.create(
+        response = openai.audio.speech.create(
             model="tts-1",
             voice="shimmer",
-            input=conteudo
+            input=resposta
         )
-        audio_response.stream_to_file(temp_audio.name)
+        response.stream_to_file(temp_audio.name)
 
         with open(temp_audio.name, "rb") as f:
             encoded = base64.b64encode(f.read()).decode("utf-8")
@@ -109,6 +97,6 @@ async def ativar_jarvis():
     print("✅ Jarvis concluído.")
     return {
         "texto": texto,
-        "resposta": conteudo,
+        "resposta": resposta,
         "audio_base64": encoded
     }
