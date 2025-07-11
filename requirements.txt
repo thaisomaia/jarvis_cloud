@@ -1,7 +1,6 @@
 fastapi
 uvicorn
-fastapi
-uvicorn
-openai>=1.2.4
+openai
 pydantic
 firebase-admin
+python-dotenv
