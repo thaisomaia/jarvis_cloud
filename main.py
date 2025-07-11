@@ -1,69 +1,37 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from dotenv import load_dotenv
-import openai
-import os
-from firestore_memoria import (
-    salvar_memoria,
-    buscar_memorias_por_palavra,
-    buscar_memorias_por_data
-)
+from fastapi import File, UploadFile
+import tempfile
+import requests
 
-load_dotenv()
-app = FastAPI()
-
-# Inicializa API do OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# ───────────────────────── MODELOS ─────────────────────────
-
-class Pergunta(BaseModel):
-    texto: str
-
-class ConsultaPorPalavra(BaseModel):
-    usuario: str
-    palavra: str
-
-class ConsultaPorData(BaseModel):
-    usuario: str
-    data: str  # formato: YYYY-MM-DD
-
-# ──────────────────────── ENDPOINTS ────────────────────────
-
-@app.get("/")
-def root():
-    return {"mensagem": "Jarvis Cloud API rodando!"}
-
-@app.post("/responder")
-async def responder(pergunta: Pergunta):
+@app.post("/responder_audio")
+async def responder_audio(file: UploadFile = File(...)):
     try:
+        # Salva o arquivo temporariamente
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp:
+            temp.write(await file.read())
+            temp_path = temp.name
+
+        # Transcreve com a API Whisper da OpenAI
+        audio_file = open(temp_path, "rb")
+        transcript = openai.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
+        )
+        texto = transcript.text.strip()
+        print("📝 Texto transcrito:", texto)
+
+        # Gera resposta com GPT-4
         resposta = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "Você é o Jarvis, um assistente pessoal inteligente."},
-                {"role": "user", "content": pergunta.texto}
+                {"role": "user", "content": texto}
             ]
         )
         conteudo = resposta.choices[0].message.content.strip()
 
-        salvar_memoria("thais", pergunta.texto, conteudo)
+        # Salva na memória
+        salvar_memoria("thais", texto, conteudo)
 
-        return {"resposta": conteudo}
-    except Exception as e:
-        return {"erro": str(e)}
-
-@app.post("/memoria")
-async def memoria(consulta: ConsultaPorPalavra):
-    try:
-        resultados = buscar_memorias_por_palavra(consulta.usuario, consulta.palavra)
-        return resultados
-    except Exception as e:
-        return {"erro": str(e)}
-
-@app.post("/memoria_por_data")
-async def memoria_por_data(consulta: ConsultaPorData):
-    try:
-        resultados = buscar_memorias_por_data(consulta.usuario, consulta.data)
-        return resultados
+        return {"texto": texto, "resposta": conteudo}
     except Exception as e:
         return {"erro": str(e)}
