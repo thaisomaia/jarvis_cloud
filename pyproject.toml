@@ -1,0 +1,5 @@
+[project]
+name = "jarvis"
+version = "0.1.0"
+description = "Assistente pessoal com memória"
+requires-python = ">=3.10,<3.13"
