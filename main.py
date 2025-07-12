@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -49,11 +49,11 @@ async def responder(request: RequisicaoTexto):
     resposta_gpt = responder_com_gpt(texto)
     print("🤖 Resposta do GPT:", resposta_gpt)
 
-    # Gera data atual formatada
-    agora = datetime.now()
-    data_formatada = agora.strftime("%d/%m/%Y")
+    # Gera timestamp completo em UTC
+    agora = datetime.now(timezone.utc)
+    timestamp = agora.isoformat()
 
-    # Salva na memória
-    salvar_na_memoria(texto, resposta_gpt, data_formatada)
+    # Salva na memória (Firestore)
+    salvar_na_memoria(texto, resposta_gpt, timestamp)
 
     return {"resposta": resposta_gpt}
