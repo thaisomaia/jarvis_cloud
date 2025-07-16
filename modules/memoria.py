@@ -19,7 +19,9 @@ def salvar_na_memoria(pergunta, resposta):
             "data": datetime.utcnow().isoformat()
         }
         response = supabase.table("memorias_jarvis").insert(dados).execute()
-        if response.status_code != 201:
-            raise Exception(f"Erro ao salvar memória: {response.text}")
+
+        if response.error:
+            raise Exception(f"Erro ao salvar memória: {response.error}")
+
     except Exception as e:
         raise Exception(f"Erro ao salvar memória: {str(e)}")
