@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from modules.memoria import salvar_na_memoria
 from modules.clima import obter_clima
 from modules.calendario_apple import obter_eventos_do_dia
+from fastapi.middleware.cors import CORSMiddleware
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -13,10 +12,10 @@ load_dotenv()
 
 app = FastAPI()
 
-# Ativar CORS com permissões completas
+# Ativa CORS para permitir requisições do frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Você pode restringir depois para apenas o domínio do frontend
+    allow_origins=["*"],  # ou especifique ["http://localhost:3000"] se quiser restringir
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,14 +63,10 @@ async def responder(pergunta: Pergunta):
 
     return {"resposta": resposta}
 
-@app.options("/eventos")
-async def preflight_eventos():
-    return JSONResponse(status_code=200, content={"ok": True})
-
 @app.post("/eventos")
 async def eventos(dados: DadosCalendario):
     try:
-        eventos = obter_eventos_do_dia(dados.email, dados.senha_app)
-        return {"eventos": eventos}
+        eventos_texto = obter_eventos_do_dia(dados.email, dados.senha_app)
+        return {"eventos": eventos_texto}  # <-- Corrigido: retorna a string diretamente
     except Exception as e:
         return {"erro": str(e)}
