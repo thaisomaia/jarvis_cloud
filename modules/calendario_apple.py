@@ -1,8 +1,14 @@
-from datetime import date
+import os
+from datetime import datetime, time, timedelta
 from caldav import DAVClient
+from dotenv import load_dotenv
 
-def obter_eventos_do_dia(email, senha_app):
-    url = "https://caldav.icloud.com/"
+load_dotenv()
+
+def obter_eventos_do_dia(email: str, senha_app: str) -> str:
+    url = os.getenv("APPLE_CALENDAR_URL")
+    if not url:
+        raise Exception("URL do Apple Calendar não encontrada no .env")
 
     client = DAVClient(url, username=email, password=senha_app)
     principal = client.principal()
@@ -11,19 +17,19 @@ def obter_eventos_do_dia(email, senha_app):
     if not calendars:
         return "Nenhum calendário encontrado."
 
-    hoje = date.today()
+    hoje = datetime.now().date()
+    inicio_dia = datetime.combine(hoje, time.min)
+    fim_dia = datetime.combine(hoje, time.max)
+
     eventos_do_dia = []
 
     for calendario in calendars:
-        try:
-            eventos = calendario.date_search(hoje)
-            for evento in eventos:
-                try:
-                    eventos_do_dia.append(evento.vobject_instance.vevent.summary.value)
-                except Exception:
-                    continue
-        except Exception:
-            continue
+        eventos = calendario.date_search(start=inicio_dia, end=fim_dia)
+        for evento in eventos:
+            try:
+                eventos_do_dia.append(evento.vobject_instance.vevent.summary.value)
+            except Exception:
+                continue
 
     if eventos_do_dia:
         return "Eventos de hoje: " + ", ".join(eventos_do_dia)
