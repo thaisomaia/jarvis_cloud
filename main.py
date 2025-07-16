@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from modules.memoria import salvar_na_memoria
 from modules.clima import obter_clima
+from modules.calendario_apple import obter_eventos_do_dia
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -15,6 +16,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 class Pergunta(BaseModel):
     pergunta: str
 
+class DadosCalendario(BaseModel):
+    email: str
+    senha_app: str
+
 @app.post("/responder")
 async def responder(pergunta: Pergunta):
     texto = pergunta.pergunta.lower()
@@ -22,7 +27,10 @@ async def responder(pergunta: Pergunta):
     # Caso 1: Clima
     if "clima" in texto or "tempo" in texto:
         resposta_clima = obter_clima()
-        salvar_na_memoria(texto, resposta_clima)
+        try:
+            salvar_na_memoria(texto, resposta_clima)
+        except Exception as e:
+            print(f"[Erro ao salvar memória]: {e}")
         return {"resposta": resposta_clima}
 
     # Caso 2: GPT
@@ -38,5 +46,17 @@ async def responder(pergunta: Pergunta):
     except Exception as e:
         resposta = f"Erro ao acessar o modelo: {str(e)}"
 
-    salvar_na_memoria(texto, resposta)
+    try:
+        salvar_na_memoria(texto, resposta)
+    except Exception as e:
+        print(f"[Erro ao salvar memória]: {e}")
+
     return {"resposta": resposta}
+
+@app.post("/eventos")
+async def eventos(dados: DadosCalendario):
+    try:
+        eventos = obter_eventos_do_dia(dados.email, dados.senha_app)
+        return {"eventos": eventos}
+    except Exception as e:
+        return {"erro": str(e)}
