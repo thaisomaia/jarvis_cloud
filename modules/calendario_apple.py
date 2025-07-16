@@ -1,37 +1,41 @@
 import os
-from datetime import datetime, time, timedelta
+from datetime import date
 from caldav import DAVClient
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def obter_eventos_do_dia(email: str, senha_app: str) -> str:
+def obter_eventos_do_dia(email: str, senha_app: str):
     url = os.getenv("APPLE_CALENDAR_URL")
+
     if not url:
         raise Exception("URL do Apple Calendar não encontrada no .env")
 
-    client = DAVClient(url, username=email, password=senha_app)
-    principal = client.principal()
-    calendars = principal.calendars()
+    # 🔁 Substitui webcal:// por https://
+    url = url.replace("webcal://", "https://")
 
-    if not calendars:
-        return "Nenhum calendário encontrado."
+    try:
+        client = DAVClient(url, username=email, password=senha_app)
+        principal = client.principal()
+        calendars = principal.calendars()
 
-    hoje = datetime.now().date()
-    inicio_dia = datetime.combine(hoje, time.min)
-    fim_dia = datetime.combine(hoje, time.max)
+        if not calendars:
+            return {"eventos": "Nenhum calendário encontrado."}
 
-    eventos_do_dia = []
+        hoje = date.today()
+        eventos_do_dia = []
 
-    for calendario in calendars:
-        eventos = calendario.date_search(start=inicio_dia, end=fim_dia)
-        for evento in eventos:
-            try:
-                eventos_do_dia.append(evento.vobject_instance.vevent.summary.value)
-            except Exception:
-                continue
+        for calendario in calendars:
+            eventos = calendario.date_search(hoje)
+            for evento in eventos:
+                try:
+                    eventos_do_dia.append(evento.vobject_instance.vevent.summary.value)
+                except Exception:
+                    continue
 
-    if eventos_do_dia:
-        return "Eventos de hoje: " + ", ".join(eventos_do_dia)
-    else:
-        return "Você não tem eventos marcados para hoje."
+        if eventos_do_dia:
+            return {"eventos": "Eventos de hoje: " + ", ".join(eventos_do_dia)}
+        else:
+            return {"eventos": "Você não tem eventos marcados para hoje."}
+    except Exception as e:
+        return {"erro": str(e)}
