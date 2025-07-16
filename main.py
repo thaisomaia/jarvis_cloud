@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from modules.memoria import salvar_na_memoria
 from modules.clima import obter_clima
@@ -10,6 +12,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
+
+# Ativar CORS com permissões completas
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Você pode restringir depois para apenas o domínio do frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -52,6 +63,10 @@ async def responder(pergunta: Pergunta):
         print(f"[Erro ao salvar memória]: {e}")
 
     return {"resposta": resposta}
+
+@app.options("/eventos")
+async def preflight_eventos():
+    return JSONResponse(status_code=200, content={"ok": True})
 
 @app.post("/eventos")
 async def eventos(dados: DadosCalendario):
