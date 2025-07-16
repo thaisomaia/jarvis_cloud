@@ -9,9 +9,9 @@ def obter_eventos_do_dia(email: str, senha_app: str):
     url = os.getenv("APPLE_CALENDAR_URL")
 
     if not url:
-        raise Exception("URL do Apple Calendar não encontrada no .env")
+        return {"erro": "URL do Apple Calendar não encontrada no .env"}
 
-    # 🔁 Substitui webcal:// por https://
+    # ✅ Corrige o prefixo inválido
     url = url.replace("webcal://", "https://")
 
     try:
