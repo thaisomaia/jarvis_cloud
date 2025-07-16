@@ -20,7 +20,7 @@ def salvar_na_memoria(pergunta, resposta):
         }
         response = supabase.table("memorias_jarvis").insert(dados).execute()
 
-        if response.data is None:
+        if not response.data:  # Verifica se é None ou lista vazia
             raise Exception("Erro ao salvar memória: resposta vazia do Supabase.")
 
     except Exception as e:
