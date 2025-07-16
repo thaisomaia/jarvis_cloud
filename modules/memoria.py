@@ -20,8 +20,8 @@ def salvar_na_memoria(pergunta, resposta):
         }
         response = supabase.table("memorias_jarvis").insert(dados).execute()
 
-        if response.error:
-            raise Exception(f"Erro ao salvar memória: {response.error}")
+        if response.data is None:
+            raise Exception("Erro ao salvar memória: resposta vazia do Supabase.")
 
     except Exception as e:
         raise Exception(f"Erro ao salvar memória: {str(e)}")
