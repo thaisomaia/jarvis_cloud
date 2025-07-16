@@ -1,41 +1,37 @@
-import caldav
-from caldav.elements import dav, cdav
-from datetime import datetime, timedelta
+import os
+from datetime import date
+from caldav import DAVClient
+from dotenv import load_dotenv
 
-APPLE_ID = "thaismaia00@gmail.com"
-APPLE_APP_PASSWORD = "qfeh-bjum-oyvb-xbee"
+load_dotenv()
 
-def obter_eventos_proximos(dias=7):
-    try:
-        client = caldav.DAVClient(
-            url="https://caldav.icloud.com/",
-            username=APPLE_ID,
-            password=APPLE_APP_PASSWORD
-        )
+def obter_eventos_do_dia():
+    url = os.getenv("APPLE_CALENDAR_URL")
+    usuario = os.getenv("APPLE_CALENDAR_USER")
+    senha = os.getenv("APPLE_CALENDAR_PASSWORD")
 
-        principal = client.principal()
-        calendars = principal.calendars()
+    if not url or not usuario or not senha:
+        raise Exception("Credenciais do Apple Calendar não encontradas no .env")
 
-        if not calendars:
-            return "Nenhum calendário encontrado."
+    client = DAVClient(url, username=usuario, password=senha)
+    principal = client.principal()
+    calendars = principal.calendars()
 
-        calendario = calendars[0]  # Usa o primeiro por enquanto
+    if not calendars:
+        return "Nenhum calendário encontrado."
 
-        agora = datetime.now()
-        futuro = agora + timedelta(days=dias)
+    hoje = date.today()
+    eventos_do_dia = []
 
-        eventos = calendario.date_search(start=agora, end=futuro)
-
-        if not eventos:
-            return "Nenhum evento nos próximos dias."
-
-        resposta = "📅 Próximos eventos:\n"
+    for calendario in calendars:
+        eventos = calendario.date_search(hoje)
         for evento in eventos:
-            evento_data = evento.vobject_instance.vevent.dtstart.value
-            evento_titulo = evento.vobject_instance.vevent.summary.value
-            resposta += f"- {evento_titulo} em {evento_data}\n"
+            try:
+                eventos_do_dia.append(evento.vobject_instance.vevent.summary.value)
+            except Exception:
+                continue
 
-        return resposta.strip()
-
-    except Exception as e:
-        return f"Erro ao buscar eventos: {str(e)}"
+    if eventos_do_dia:
+        return "Eventos de hoje: " + ", ".join(eventos_do_dia)
+    else:
+        return "Você não tem eventos marcados para hoje."
