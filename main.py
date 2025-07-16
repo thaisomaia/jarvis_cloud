@@ -1,38 +1,42 @@
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-import openai
+from pydantic import BaseModel
+from modules.memoria import salvar_na_memoria
+from modules.clima import obter_clima
 import os
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Ajuste se for necessário restringir
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-def stream_openai(pergunta):
-    def generator():
-        resposta = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": pergunta}],
-            stream=True
-        )
-        for chunk in resposta:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-
-    return generator()
+class Pergunta(BaseModel):
+    pergunta: str
 
 @app.post("/responder")
-async def responder_endpoint(dados: dict):
-    pergunta = dados.get("pergunta")
-    resposta_stream = stream_openai(pergunta)
-    return StreamingResponse(resposta_stream, media_type="text/plain")
+async def responder(pergunta: Pergunta):
+    texto = pergunta.pergunta.lower()
+
+    # 🔹 Caso 1: Clima
+    if "clima" in texto or "tempo" in texto:
+        resposta_clima = obter_clima()
+        salvar_na_memoria(texto, resposta_clima)
+        return {"resposta": resposta_clima}
+
+    # 🔹 Caso 2: Memória (responde com GPT, mas salva)
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Você é o Jarvis, um assistente pessoal inteligente."},
+                {"role": "user", "content": texto}
+            ]
+        )
+        resposta = completion.choices[0].message.content.strip()
+    except Exception as e:
+        resposta = f"Erro ao acessar o modelo: {str(e)}"
+
+    salvar_na_memoria(texto, resposta)
+    return {"resposta": resposta}
